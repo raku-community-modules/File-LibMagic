@@ -3,40 +3,89 @@ use NativeCall;
 
 unit class File::LibMagic;
 
+my class X is Exception {
+    has $!message;
+    submethod BUILD (:$!message) { }
+    method message {
+        return "error from libmagic: $!message";
+    }
+}
+
 my class Cookie is repr('CPointer') {
-    method new (int32 $flags) returns Cookie {
-        return magic_open($flags);
+    method new (int32 $flags, Cool @magic-files) returns Cookie {
+        my $cookie = magic_open($flags)
+            or X.new('out of memory').throw;
+
+        my $files = @magic-files.elems ?? @magic-files.join(':') !! (Str);
+        my $ok = magic_load( $cookie, $files );
+        unless $ok >= 0 {
+            X.new( magic_error($cookie) ).throw;
+        }
+
+        return $cookie;
     }
     sub magic_open (int32) returns Cookie is native('magic', v1) { * }
+    sub magic_load (Cookie, Str) returns int32 is native('magic', v1) { * }
 
     method DESTROY is native('magic', v1) is symbol('magic_close') { * }
 
+    # It's a lot easier to just read this much data in and then call
+    # magic_buffer than it is to try to actually pass a Perl handle to
+    # magic_descriptor.
+    #
+    # The BUFSIZE is how much data libmagic will want, so we just pass that
+    # much.
+    my \BUFSIZE = 256 * 1024;
     method magic-descriptor (int32 $flags, IO::Handle $file) returns Str {
-        self.setflags($flags);
-        return magic_descriptor( self, $file.native-descriptor ); 
+        $file.seek(0);
+        my $buffer = $file.read(BUFSIZE);
+        return self.magic-buffer( $flags, $buffer );
     }
-    sub magic_descriptor (Cookie, int32) returns Str is native('magic', v1) { * }
 
-    method magic-file (int32 $flags, Str $filename) returns Str {
+    method magic-file (int32 $flags, Cool $filename) returns Str {
         self.setflags($flags);
-        return magic_file( self, $filename ); 
+        # We need the .Str to turn things like an IO::Path into an actual Str
+        # for the benefit of NativeCall.
+        return magic_file( self, $filename.Str )
+            // self.throw-error;
     }
     sub magic_file (Cookie, Str) returns Str is native('magic', v1) { * }
 
-    method magic-buffer (int32 $flags, Str $buffer) returns Str {
+    # I tried making magic-buffer a multi method with magic_buffer as a
+    # corresponding multi sub but I kept getting errors about signatures not
+    # matching. I'll go the ugly but working route for now.
+    method magic-string (int32 $flags, Str $buffer) returns Str {
         self.setflags($flags);
-        return magic_buffer( self, $buffer, $buffer.encode('UTF-8').elems ); 
+        return magic_string( self, $buffer, $buffer.encode('UTF-8').elems )
+            // self.throw-error;
     }
-    sub magic_buffer (Cookie, Str, int32) returns Str is native('magic', v1) { * }
+    sub magic_string (Cookie, Str, int32) returns Str is native('magic', v1) is symbol('magic_buffer') { * }
+
+    method magic-buffer (int32 $flags, Buf[uint8] $buffer) returns Str {
+        self.setflags($flags);
+
+        my $c-array = CArray[uint8].new;
+        $c-array[$_] = $buffer[$_] for ^$buffer.elems;
+
+        return magic_buffer( self, $c-array, $buffer.elems )
+            // self.throw-error;
+    }
+    sub magic_buffer (Cookie, CArray[uint8], int32) returns Str is native('magic', v1) { * }
 
     method setflags(int32 $flags) {
         magic_setflags(self, $flags);
     }
     sub magic_setflags (Cookie, int32) is native('magic', v1) { * }
+
+    method throw-error {
+        X.new( message => magic_error(self) ).throw;
+    }
+    sub magic_error (Cookie) returns Str is native('magic', v1) { * }
 }
 
 has Cookie $!cookie;
 has int $!flags;
+has Cool @magic-files;
 
 # Copied from /usr/include/magic.h on my system
 my \MAGIC_NONE               = 0x000000; #  No flags 
@@ -63,28 +112,32 @@ my \MAGIC_NO_CHECK_CDF       = 0x040000; #  Don't check for cdf files
 my \MAGIC_NO_CHECK_TOKENS    = 0x100000; #  Don't check tokens 
 my \MAGIC_NO_CHECK_ENCODING  = 0x200000; #  Don't check text encodings 
 
-submethod BUILD (int :$flags = 0) {
+submethod BUILD (int :$flags = 0, :@!magic-files = ()) {
     $!flags = $flags +^ MAGIC_MIME +^ MAGIC_MIME_TYPE +^ MAGIC_MIME_ENCODING;
-    $!cookie = Cookie.new($!flags);
+    $!cookie = Cookie.new( $!flags, @!magic-files );
     return;
 }
 
-method for-filename (Str $filename, int $flags = 0) returns Hash {
+method from-filename (Cool $filename, int $flags = 0) returns Hash {
     return self!info-using( 'magic-file', $flags, $filename );
 }
 
-method for-handle (IO::Handle $handle, int $flags = 0) returns Hash {
+method from-handle (IO::Handle $handle, int $flags = 0) returns Hash {
     return self!info-using( 'magic-descriptor', $flags, $handle );
 }
 
-method for-buffer (Str $buffer, int $flags = 0) returns Hash {
-    return self!info-using( 'magic-buffer', $flags, $buffer );
+method from-buffer (Stringy $buffer, int $flags = 0) returns Hash {
+    return self!info-using(
+        $buffer ~~ Buf[uint8] ?? 'magic-buffer' !! 'magic-string',
+        $flags,
+        $buffer,
+    );
 }
 
 method !info-using(Str $method, int $flags, *@args) returns Hash {
-    my $description = $!cookie."$method"( $!flags +| MAGIC_MIME,          |@args );
-    my $mime-type   = $!cookie."$method"( $!flags +| MAGIC_MIME_TYPE,     |@args );
-    my $encoding    = $!cookie."$method"( $!flags +| MAGIC_MIME_ENCODING, |@args );
+    my $description = $!cookie."$method"( $!flags +| $flags +| MAGIC_NONE,          |@args );
+    my $mime-type   = $!cookie."$method"( $!flags +| $flags +| MAGIC_MIME_TYPE,     |@args );
+    my $encoding    = $!cookie."$method"( $!flags +| $flags +| MAGIC_MIME_ENCODING, |@args );
 
     return %(
         description => $description,
