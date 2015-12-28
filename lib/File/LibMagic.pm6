@@ -4,32 +4,37 @@ use NativeCall;
 unit class File::LibMagic;
 
 my class Cookie is repr('CPointer') {
-    method new (int $flags) returns Cookie {
-        return open($flags);
+    sub magic_open (int32) returns Cookie is native('magic', v1) { * }
+
+    method new (int32 $flags) returns Cookie {
+        return magic_open($flags);
     }
-    sub open (int) returns Cookie is native('magic', v1) { * }
 
     method DESTROY is native('magic', v1) is symbol('magic_close') { * }
 
-    method magic-descriptor (int $flags, IO::Handle $file) returns Str {
-        self.magic_setflags($flags);
+    method magic-descriptor (int32 $flags, IO::Handle $file) returns Str {
+        self.setflags($flags);
         return magic_descriptor( self, $file.native-descriptor ); 
     }
-    sub magic_descriptor (Cookie, int) returns Str is native('magic', v1) { * }
+    sub magic_descriptor (Cookie, int32) returns Str is native('magic', v1) { * }
 
-    method magic-file (int $flags, Str $filename) returns Str {
-        self.magic_setflags($flags);
+    method magic-file (int32 $flags, Str $filename) returns Str {
+        self.setflags($flags);
         return magic_file( self, $filename ); 
     }
     sub magic_file (Cookie, Str) returns Str is native('magic', v1) { * }
 
-    method magic-buffer (int $flags, Str $buffer) returns Str {
-        self.magic_setflags($flags);
+    method magic-buffer (int32 $flags, Str $buffer) returns Str {
+        self.setflags($flags);
         return magic_buffer( self, $buffer, $buffer.encode('UTF-8').elems ); 
     }
-    sub magic_buffer (Cookie, Str, int) returns Str is native('magic', v1) { * }
+    sub magic_buffer (Cookie, Str, int32) returns Str is native('magic', v1) { * }
 
-    method magic_setflags (int) is native('magic', v1) { * }
+    sub magic_setflags (Cookie, int32) is native('magic', v1) { * }
+
+    method setflags(int32 $flags) {
+        magic_setflags(self, $flags);
+    }
 }
 
 has Cookie $!cookie;
