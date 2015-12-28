@@ -5,9 +5,9 @@ unit class File::LibMagic;
 
 my class Cookie is repr('CPointer') {
     method new (int $flags) returns Cookie {
-        return open($flags);
+        return magic_open($flags);
     }
-    sub open (int) returns Cookie is native('magic', v1) { * }
+    sub magic_open (int) returns Cookie is native('magic', v1) { * }
 
     method DESTROY is native('magic', v1) is symbol('magic_close') { * }
 
