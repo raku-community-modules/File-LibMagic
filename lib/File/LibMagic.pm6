@@ -9,10 +9,7 @@ my class Cookie is repr('CPointer') {
     }
     sub open (int) returns Cookie is native('magic', v1) { * }
 
-    method DESTROY {
-        self.close
-    }
-    method close (Cookie) is native('magic', v1) { * }
+    method DESTROY is native('magic', v1) is symbol('magic_close') { * }
 
     method magic-descriptor (int $flags, IO::Handle $file) returns Str {
         self.magic_setflags($flags);
