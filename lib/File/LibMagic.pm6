@@ -147,8 +147,37 @@ method !info-using(Str $method, int $flags, *@args) returns Hash {
     );
 }
 
+method flags-from-args(%flag-args) {
+    state %flag-map = (
+        debug           => MAGIC_DEBUG,
+        follow-symlinks => MAGIC_SYMLINK,
+        uncompress      => MAGIC_COMPRESS,
+        open-devices    => MAGIC_DEVICES,
+        preserve-atime  => MAGIC_PRESERVE_ATIME,
+        raw             => MAGIC_RAW,
+        apple           => MAGIC_APPLE,
+    );
+
+    my $flags = 0;
+    for %flag-map.keys -> $k {
+        $flags +|= %flag-map{$k} if %flag-args{$k};
+    }
+
+    return $!flags +| $flags;
+}
+
 method !mime-type-with-encoding ($mime-type, $encoding) returns Str {
     return $mime-type unless $encoding;
     return "$mime-type; charset=$encoding";
 }
 
+method magic-version returns int {
+    return magic_version();
+    # libmagic didn't define magic_version until relatively late, so there are
+    # distros out there which don't provide this function.
+    CATCH {
+        return 0;
+    }
+}
+
+sub magic_version returns int is native('magic', v1) { * }
