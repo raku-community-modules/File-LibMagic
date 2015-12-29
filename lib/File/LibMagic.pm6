@@ -78,7 +78,7 @@ my class Cookie is repr('CPointer') {
     sub magic_setflags (Cookie, int32) is native('magic', v1) { * }
 
     method throw-error {
-        X.new( message => magic_error(self) ).throw;
+        X.new( message => magic_error(self) // 'failed without error' ).throw;
     }
     sub magic_error (Cookie) returns Str is native('magic', v1) { * }
 }
@@ -112,32 +112,32 @@ my \MAGIC_NO_CHECK_CDF       = 0x040000; #  Don't check for cdf files
 my \MAGIC_NO_CHECK_TOKENS    = 0x100000; #  Don't check tokens 
 my \MAGIC_NO_CHECK_ENCODING  = 0x200000; #  Don't check text encodings 
 
-submethod BUILD (int :$flags = 0, :@!magic-files = ()) {
-    $!flags = $flags +^ MAGIC_MIME +^ MAGIC_MIME_TYPE +^ MAGIC_MIME_ENCODING;
+submethod BUILD (:@!magic-files = (), *%flag-args) {
+    $!flags = 0;
+    $!flags = self.flags-from-args(%flag-args);
     $!cookie = Cookie.new( $!flags, @!magic-files );
     return;
 }
 
-method from-filename (Cool $filename, int $flags = 0) returns Hash {
-    return self!info-using( 'magic-file', $flags, $filename );
+method from-filename (Cool $filename, *%flag-args) returns Hash {
+    return self!info-using( 'magic-file', $filename, %flag-args );
 }
 
-method from-handle (IO::Handle $handle, int $flags = 0) returns Hash {
-    return self!info-using( 'magic-descriptor', $flags, $handle );
+method from-handle (IO::Handle $handle, *%flag-args) returns Hash {
+    return self!info-using( 'magic-descriptor', $handle, %flag-args );
 }
 
-method from-buffer (Stringy $buffer, int $flags = 0) returns Hash {
-    return self!info-using(
-        $buffer ~~ Buf[uint8] ?? 'magic-buffer' !! 'magic-string',
-        $flags,
-        $buffer,
-    );
+method from-buffer (Stringy $buffer, *%flag-args) returns Hash {
+    my $method = $buffer ~~ Buf[uint8] ?? 'magic-buffer' !! 'magic-string',
+    return self!info-using( $method, $buffer, %flag-args );
 }
 
-method !info-using(Str $method, int $flags, *@args) returns Hash {
-    my $description = $!cookie."$method"( $!flags +| $flags +| MAGIC_NONE,          |@args );
-    my $mime-type   = $!cookie."$method"( $!flags +| $flags +| MAGIC_MIME_TYPE,     |@args );
-    my $encoding    = $!cookie."$method"( $!flags +| $flags +| MAGIC_MIME_ENCODING, |@args );
+method !info-using(Str $method, $arg, %flag-args) returns Hash {
+    my $flags = self.flags-from-args(%flag-args);
+
+    my $description = $!cookie."$method"( $flags +| MAGIC_NONE,          $arg );
+    my $mime-type   = $!cookie."$method"( $flags +| MAGIC_MIME_TYPE,     $arg );
+    my $encoding    = $!cookie."$method"( $flags +| MAGIC_MIME_ENCODING, $arg );
 
     return %(
         description => $description,
