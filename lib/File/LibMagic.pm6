@@ -84,7 +84,7 @@ my class Cookie is repr('CPointer') {
 }
 
 has Cookie $!cookie;
-has int $!flags;
+has int32 $!flags;
 has Cool @magic-files;
 
 # Copied from /usr/include/magic.h on my system
@@ -171,7 +171,7 @@ method !mime-type-with-encoding ($mime-type, $encoding) returns Str {
     return "$mime-type; charset=$encoding";
 }
 
-method magic-version returns int {
+method magic-version returns int32 {
     return magic_version();
     # libmagic didn't define magic_version until relatively late, so there are
     # distros out there which don't provide this function.
@@ -180,4 +180,4 @@ method magic-version returns int {
     }
 }
 
-sub magic_version returns int is native('magic', v1) { * }
+sub magic_version returns int32 is native('magic', v1) { * }
