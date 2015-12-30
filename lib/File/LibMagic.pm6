@@ -14,12 +14,12 @@ my class X is Exception {
 my class Cookie is repr('CPointer') {
     method new (int32 $flags, Cool @magic-files) returns Cookie {
         my $cookie = magic_open($flags)
-            or X.new('out of memory').throw;
+            or X.new( message => 'out of memory' ).throw;
 
         my $files = @magic-files.elems ?? @magic-files.join(':') !! (Str);
         my $ok = magic_load( $cookie, $files );
         unless $ok >= 0 {
-            X.new( magic_error($cookie) ).throw;
+            X.new( message => magic_error($cookie) ).throw;
         }
 
         return $cookie;
