@@ -1,7 +1,7 @@
 use v6;
 use NativeCall;
 
-unit class File::LibMagic;
+unit class File::LibMagic:ver<0.0.1>:auth<github:autarch>;
 
 my class X is Exception {
     has $!message;
