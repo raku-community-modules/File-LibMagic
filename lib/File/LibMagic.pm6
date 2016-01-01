@@ -155,7 +155,6 @@ method flags-from-args(%flag-args) {
         open-devices    => MAGIC_DEVICES,
         preserve-atime  => MAGIC_PRESERVE_ATIME,
         raw             => MAGIC_RAW,
-        apple           => MAGIC_APPLE,
     );
 
     my $flags = 0;
