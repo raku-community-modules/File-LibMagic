@@ -180,3 +180,110 @@ method magic-version returns int32 {
 }
 
 sub magic_version returns int32 is native('magic', v1) { * }
+
+=begin pod
+
+=NAME
+
+File::LibMagic - Determine content type and encoding using libmagic
+
+=SYNOPSIS
+
+    use File::LibMagic;
+
+    my $magic = File::LibMagic.new;
+
+    my %info = $magic.from-filename( 'path/to/file.pm6' );
+    if %info<mime-type> ~~ rx{ ^ 'text/' } { ... }
+
+=DESCRIPTION
+
+This class provides an API that allows you to get the MIME type and encoding
+of a file or chunk of in-memory content. It uses the libmagic C library, so
+you will need to have this installed in order for this class to work.
+
+=METHOD File::LibMagic.new(...)
+
+The constructor creates a new magic object. It accepts the following
+named parameters:
+
+=item C<Str @magic-files>
+
+This should be a list of filenames containing magic definitions. This is
+optional, and if it's not provided then libmagic will use the default magic
+file on your system (usually something like C</usr/share/file/magic.mgc>).
+
+=item C<Bool $follow-symlinks>
+
+By default, libmagic simply returns C<inode/symlink> as the MIME type for
+symlinks. If this parameter is set to C<True>, then libmagic will resolve
+symlinks and given the MIME information for the file that the symlink points.
+
+=item C<Bool $uncompress>
+
+By default, when given a compressed file, libmagic gives you a MIME type based
+on the compression format like C<application/gzip>. If this is set to C<True>
+then libmagic will uncompress the file and give you the MIME information for
+the uncompressed file.
+
+=item C<Bool $open-devices>
+
+By default, libmagic gives you the type of the device file, something like
+C<inode/blockdevice>. If this is set to C<True>, then libmagic will open the
+device, read data from it, and give you the MIME information for that data.
+
+=item C<Bool $preserve-atime>
+
+If this is set to C<True>, libmagic will attempt to preserve the file access
+time of files it reads.
+
+B<Note that because of some internal implementation details of this Perl 6
+class, this does not work if you call the C<from-handle> method>.
+
+=item C<Bool $raw>
+
+If this is set to C<True>, then non-printable characters in any data returned
+by the library are left as-is, rather than being translated into an octal
+representation (\011).
+
+=item C<Bool $debug>
+
+If this is true then libmagic will print out a lot of debugging information as
+it goes.
+
+=METHODS
+
+All of the information methods for this class return the same hash structure:
+
+    {
+        description => 'A description of this MIME type',
+        mime-type   => 'mime/type',
+        encoding    => 'UTF-8',
+        mime-type-with-encoding => 'mime/type; charset=UTF-8',
+    }
+
+All of the methods take any of the flags that can be passed to
+constructor. These flags only apply for the method call during which they're
+passed, and override any flags passed to the constructor for that one method
+call.
+
+=METHOD $magic.from-filename( $filename, %flags )
+
+This method takes a filename as a string or L<IO::Path> and returns the MIME
+information for that filename.
+
+=METHOD $magic.from-handle( $handle, %flags )
+
+This method takes a handle opened for reading and returns the MIME information
+for that filename.
+
+Note that this method will actually read data from the file, moving the file
+pointer. If you want to use the handle later, you should probably could
+C<.seek> on it.
+
+=METHOD $magic.from-buffer( $buffer, %flags )
+
+This method accepts a C<Str> or C<Buf> and returns the MIME information for
+the data in that object.
+
+=end pod
