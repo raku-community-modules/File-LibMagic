@@ -2,6 +2,8 @@ use v6;
 use lib 'lib';
 use Test;
 
+plan 2;
+
 use File::LibMagic;
 
 {
@@ -82,7 +84,7 @@ sub test-flm (File::LibMagic $magic, %tests) {
                 );
             }, 'from-buffer';
 
-            subtest { 
+            subtest {
                 my $handle = $file.IO.open(:r);
                 test-info(
                     %test,
