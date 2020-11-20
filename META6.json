@@ -8,5 +8,5 @@
     "provides"    : {
         "File::LibMagic" : "lib/File/LibMagic.pm6"
     },
-    "source-url"  : "git://github.com/autarch/perl6-File-LibMagic.git"
+    "source-url"  : "git://github.com/raku-community-modules/File-LibMagic.git"
 }
